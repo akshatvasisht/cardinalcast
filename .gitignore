@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+venv/
+.venv/
+env/
+.env
+
+# Node
+node_modules/
+dist/
+.npm
+
+# User data and models (tracked via Git LFS)
+# .gitattributes handles the LFS routing
+
+# Secrets / IDE
+.env.local
+*.pem
+.cursor/
+.idea/
+.vscode/
+.DS_Store
+
+# Agent context (plans and session log — local only)
+agentcontext/
+
+# Build / other
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+*.pyc
+
+# Generated security/audit reports (run-time output, not source)
+bandit_report.txt
+**/npm_audit_report.txt
+
+# ML training outputs (metrics are generated from training runs)
+ml_training/metrics/
