@@ -17,6 +17,11 @@ export type LeaderboardEntry = {
   rank: number
 }
 
+export type LeaderboardResponse = {
+  top: LeaderboardEntry[]
+  current_user: LeaderboardEntry | null
+}
+
 export enum WagerStatus {
   PENDING = 'PENDING',
   PENDING_DATA = 'PENDING_DATA',
@@ -36,6 +41,7 @@ export type Wager = {
   wager_kind?: 'BUCKET' | 'OVER_UNDER' | string
   direction?: 'OVER' | 'UNDER' | string | null
   predicted_value?: number | null
+  base_payout_multiplier?: number | null
   winnings?: number | null
 }
 

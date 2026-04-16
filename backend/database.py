@@ -4,7 +4,6 @@ import os
 from typing import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session
 
 from backend.config import DB_URL
@@ -14,12 +13,12 @@ if DB_URL.startswith("postgresql"):
 else:
     engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def SessionLocal() -> Session:
+    """Return a new SQLModel Session (used by scheduler/lifecycle services)."""
+    return Session(engine)
 
 
 def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
+    with Session(engine) as db:
         yield db
-    finally:
-        db.close()

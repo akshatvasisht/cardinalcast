@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,10 +37,9 @@ class WagerResponse(BaseModel):
     wager_kind: str
     direction: Optional[str]
     predicted_value: Optional[float]
-    created_at: datetime  # Changed to datetime
+    created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("", status_code=201)
@@ -54,7 +53,7 @@ def place_wager(
     
     # Lock user row to prevent race condition on balance check/deduction
     stmt = select(User).where(User.id == user.id).with_for_update()
-    user_locked = db.exec(stmt).one()
+    user_locked = db.execute(stmt).scalar_one()
     
     if user_locked.credits_balance < req.amount:
         raise HTTPException(
@@ -62,7 +61,6 @@ def place_wager(
             detail=f"Insufficient credits. You have {user_locked.credits_balance} but need {req.amount}",
         )
 
-    # 1. Handle Bucket Wager
     if req.wager_kind == "BUCKET":
         if req.bucket_value is None:
             raise HTTPException(status_code=400, detail="Bucket value required for bucket wager")
@@ -95,7 +93,6 @@ def place_wager(
             jackpot_multiplier=odds_row.jackpot_multiplier,
         )
 
-    # 2. Handle Over/Under Wager
     elif req.wager_kind == "OVER_UNDER":
         if not req.direction or req.predicted_value is None:
             raise HTTPException(status_code=400, detail="Direction and predicted_value required for Over/Under")
@@ -112,7 +109,6 @@ def place_wager(
         if not forecast:
              raise HTTPException(status_code=400, detail="No forecast data available for this date")
         
-        # Determine anchor based on target
         algo_anchor = 0.0
         if req.target == "high_temp":
             algo_anchor = forecast.noaa_high_temp
@@ -225,6 +221,7 @@ def list_wagers(
             "wager_kind": r.wager_kind,
             "direction": r.direction,
             "predicted_value": r.predicted_value,
+            "base_payout_multiplier": r.base_payout_multiplier,
             "winnings": r.winnings,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }

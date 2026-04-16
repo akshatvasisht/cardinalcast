@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useAuth, DEV_BYPASS_TOKEN } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/api/client'
 import type { OddsOption } from '@/api/types'
 import { TARGET_LABELS } from '@/api/types'
@@ -80,6 +80,12 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
     const [success, setSuccess] = useState(false)
     const [estMultiplier, setEstMultiplier] = useState<number | null>(null)
     const [loadingMultiplier, setLoadingMultiplier] = useState(false)
+    const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+    // Clean up close timer on unmount
+    useEffect(() => {
+        return () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current) }
+    }, [])
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema) as Resolver<FormValues>,
@@ -94,27 +100,35 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
         },
     })
 
-    // Load odds and handle initialDate pre-fill
+    // Load odds once when dialog opens (not on every date change)
     useEffect(() => {
         if (open) {
             setLoading(true)
             setSuccess(false)
             setSubmitError(null)
-
             api.listOdds()
-                .then((data) => {
-                    setOdds(data)
-                    if (initialDate) {
-                        const dateStr = format(initialDate, 'yyyy-MM-dd')
-                        const dateExists = data.some(o => o.forecast_date === dateStr)
-                        if (dateExists) {
-                            form.setValue('forecast_date', dateStr)
-                        }
-                    }
-                })
+                .then(setOdds)
                 .finally(() => setLoading(false))
         }
-    }, [open, initialDate, form])
+    }, [open])
+
+    // When initialDate changes (or odds first load), reset form to the new date
+    useEffect(() => {
+        if (!odds.length || !initialDate) return
+        const dateStr = format(initialDate, 'yyyy-MM-dd')
+        const dateExists = odds.some(o => o.forecast_date === dateStr)
+        form.reset({
+            forecast_date: dateExists ? dateStr : '',
+            target: '',
+            amount: 10,
+            wager_kind: 'BUCKET',
+            bucket_id: '',
+            direction: undefined,
+            predicted_value: undefined,
+        })
+        setSuccess(false)
+        setSubmitError(null)
+    }, [initialDate, odds, form])
 
     const wagerKind = form.watch('wager_kind')
     const direction = form.watch('direction')
@@ -145,23 +159,26 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
         return () => clearTimeout(timer)
     }, [wagerKind, token, forecastDate, target, direction, threshold])
 
-    const dates = [...new Set(odds.map((o) => o.forecast_date))].sort()
-    const targetsForDate = forecastDate
-        ? [...new Set(odds.filter((o) => o.forecast_date === forecastDate).map((o) => o.target))]
-        : []
-    const bucketsForDateTarget =
-        forecastDate && target
+    const dates = useMemo(
+        () => [...new Set(odds.map((o) => o.forecast_date))].sort(),
+        [odds]
+    )
+    const targetsForDate = useMemo(
+        () => forecastDate
+            ? [...new Set(odds.filter((o) => o.forecast_date === forecastDate).map((o) => o.target))]
+            : [],
+        [odds, forecastDate]
+    )
+    const bucketsForDateTarget = useMemo(
+        () => forecastDate && target
             ? odds.filter((o) => o.forecast_date === forecastDate && o.target === target)
-            : []
+            : [],
+        [odds, forecastDate, target]
+    )
 
-    async function onSubmit(values: FormValues) {
+    const onSubmit = useCallback(async (values: FormValues) => {
         if (!token) return
         setSubmitError(null)
-        if (token === DEV_BYPASS_TOKEN) {
-            setSubmitError('Use a real account to place wagers (log in or register).')
-            return
-        }
-
         try {
             if (values.wager_kind === 'BUCKET') {
                 const bucket = odds.find((o) => o.id === Number(values.bucket_id))
@@ -199,13 +216,11 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                 predicted_value: undefined,
             })
 
-            // Flash success message then close? or keep open?
-            // For now, let's refresh user credits and just show success message
             const updated = await api.me(token)
             setUser(updated)
 
             // Close dialog after short delay
-            setTimeout(() => {
+            closeTimerRef.current = setTimeout(() => {
                 onOpenChange(false)
                 setSuccess(false)
             }, 1500)
@@ -213,7 +228,7 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
         } catch (e) {
             setSubmitError(e instanceof Error ? e.message : 'Failed to place wager')
         }
-    }
+    }, [token, odds, onOpenChange, setUser])
 
     const content = (
         <>
@@ -236,7 +251,7 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                 </div>
             ) : (
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className={hideTrigger ? 'space-y-1.5' : 'space-y-3'}>
                         {submitError && (
                             <p className="text-sm font-medium text-destructive bg-destructive/10 p-2 rounded" role="alert" aria-live="assertive">{submitError}</p>
                         )}
@@ -246,11 +261,12 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                             </p>
                         )}
 
-                        <div className="flex gap-2 p-1 bg-muted rounded-md mb-4">
+                        <div role="group" aria-label="Wager type" className="flex gap-2 p-1 bg-muted rounded-md">
                             <Button
                                 type="button"
                                 variant={wagerKind === 'BUCKET' ? 'secondary' : 'ghost'}
-                                className="flex-1 h-8"
+                                className="flex-1 h-7 text-xs"
+                                aria-pressed={wagerKind === 'BUCKET'}
                                 onClick={() => form.setValue('wager_kind', 'BUCKET')}
                             >
                                 Bucket
@@ -258,52 +274,55 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                             <Button
                                 type="button"
                                 variant={wagerKind === 'OVER_UNDER' ? 'secondary' : 'ghost'}
-                                className="flex-1 h-8"
+                                className="flex-1 h-7 text-xs"
+                                aria-pressed={wagerKind === 'OVER_UNDER'}
                                 onClick={() => form.setValue('wager_kind', 'OVER_UNDER')}
                             >
                                 Over / Under
                             </Button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control}
-                                name="forecast_date"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Forecast Date</FormLabel>
-                                        <Select
-                                            onValueChange={(v) => {
-                                                field.onChange(v)
-                                                form.setValue('target', '')
-                                                form.setValue('bucket_id', '')
-                                            }}
-                                            value={field.value}
-                                        >
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select date" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {dates.map((d) => (
-                                                    <SelectItem key={d} value={d}>
-                                                        {d}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                        <div className={hideTrigger ? '' : 'grid grid-cols-2 gap-3'}>
+                            {!hideTrigger && (
+                                <FormField
+                                    control={form.control}
+                                    name="forecast_date"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Forecast Date</FormLabel>
+                                            <Select
+                                                onValueChange={(v) => {
+                                                    field.onChange(v)
+                                                    form.setValue('target', '')
+                                                    form.setValue('bucket_id', '')
+                                                }}
+                                                value={field.value}
+                                            >
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select date" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {dates.map((d) => (
+                                                        <SelectItem key={d} value={d}>
+                                                            {d}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            )}
 
                             <FormField
                                 control={form.control}
                                 name="target"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Target</FormLabel>
+                                        <FormLabel className={hideTrigger ? 'sr-only' : undefined}>Target</FormLabel>
                                         <Select
                                             onValueChange={(v) => {
                                                 field.onChange(v)
@@ -313,7 +332,7 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                                             disabled={!forecastDate}
                                         >
                                             <FormControl>
-                                                <SelectTrigger>
+                                                <SelectTrigger className={hideTrigger ? 'h-8 text-sm' : ''}>
                                                     <SelectValue placeholder="Target" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -337,14 +356,14 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                                 name="bucket_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Bucket</FormLabel>
+                                        <FormLabel className={hideTrigger ? 'sr-only' : undefined}>Bucket</FormLabel>
                                         <Select
                                             onValueChange={field.onChange}
                                             value={field.value}
                                             disabled={!target}
                                         >
                                             <FormControl>
-                                                <SelectTrigger>
+                                                <SelectTrigger className={hideTrigger ? 'h-8 text-sm' : ''}>
                                                     <SelectValue placeholder="Select bucket" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -361,18 +380,18 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                                 )}
                             />
                         ) : (
-                            <div className="space-y-4 border p-3 rounded-md">
+                            <div className="grid grid-cols-2 gap-3">
                                 <FormField
                                     control={form.control}
                                     name="direction"
                                     render={({ field }) => (
-                                        <FormItem className="space-y-2">
-                                            <FormLabel>Prediction</FormLabel>
-                                            <div className="flex gap-2">
+                                        <FormItem>
+                                            <FormLabel className={hideTrigger ? 'sr-only' : undefined}>Direction</FormLabel>
+                                            <div className="flex gap-1.5">
                                                 <Button
                                                     type="button"
                                                     variant={field.value === 'OVER' ? 'default' : 'outline'}
-                                                    className="flex-1 h-8"
+                                                    className={hideTrigger ? 'flex-1 h-8 text-sm' : 'flex-1 h-9'}
                                                     onClick={() => field.onChange('OVER')}
                                                 >
                                                     Over
@@ -380,7 +399,7 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                                                 <Button
                                                     type="button"
                                                     variant={field.value === 'UNDER' ? 'default' : 'outline'}
-                                                    className="flex-1 h-8"
+                                                    className={hideTrigger ? 'flex-1 h-8 text-sm' : 'flex-1 h-9'}
                                                     onClick={() => field.onChange('UNDER')}
                                                 >
                                                     Under
@@ -395,11 +414,13 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                                     name="predicted_value"
                                     render={({ field }) => (
                                         <FormItem>
+                                            <FormLabel className={hideTrigger ? 'sr-only' : undefined}>Threshold</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     type="number"
                                                     step="0.1"
-                                                    placeholder="Value (e.g. 45.5)"
+                                                    className={hideTrigger ? 'h-8 text-sm' : 'h-9'}
+                                                    placeholder="e.g. 45.5"
                                                     {...field}
                                                     onChange={(e) => field.onChange(e.target.valueAsNumber)}
                                                 />
@@ -407,7 +428,7 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                                             <FormMessage />
                                             {(estMultiplier !== null || loadingMultiplier) && (
                                                 <p className="text-xs font-medium text-primary text-right">
-                                                    {loadingMultiplier ? 'Calculating...' : `Likely Payout: ${estMultiplier}x`}
+                                                    {loadingMultiplier ? 'Calculating...' : `Est. ${estMultiplier}x`}
                                                 </p>
                                             )}
                                         </FormItem>
@@ -416,17 +437,18 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                             </div>
                         )}
 
-                        <div className="pt-2">
+                        <div className="flex items-end gap-3">
                             <FormField
                                 control={form.control}
                                 name="amount"
                                 render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Wager Amount (credits)</FormLabel>
+                                    <FormItem className="flex-1">
+                                        <FormLabel className={hideTrigger ? 'sr-only' : undefined}>Amount (credits)</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="number"
                                                 min={1}
+                                                className={hideTrigger ? 'h-8 text-sm' : ''}
                                                 {...field}
                                                 onChange={(e) => field.onChange(e.target.valueAsNumber)}
                                             />
@@ -435,17 +457,16 @@ export function PlaceWagerDialog({ open, onOpenChange, initialDate, hideTrigger 
                                     </FormItem>
                                 )}
                             />
-                        </div>
-
-                        <div className="pt-2 flex justify-end gap-2">
-                            {!hideTrigger && (
-                                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                                    Cancel
+                            <div className="flex gap-2 shrink-0 pb-[1px]">
+                                {!hideTrigger && (
+                                    <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                                        Cancel
+                                    </Button>
+                                )}
+                                <Button type="submit" size={hideTrigger ? 'sm' : 'default'}>
+                                    Place Wager
                                 </Button>
-                            )}
-                            <Button type="submit">
-                                Place Wager
-                            </Button>
+                            </div>
                         </div>
                     </form>
                 </Form>

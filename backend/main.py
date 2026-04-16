@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.routers import auth_routes, wager_routes, odds_routes, daily_routes, leaderboard_routes
 from backend.scheduler import start_scheduler, shutdown_scheduler
@@ -19,6 +20,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],

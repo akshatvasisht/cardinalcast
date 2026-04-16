@@ -9,9 +9,9 @@ const DEV_BYPASS =
   import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTH === 'true'
 
 const MOCK_USER: User = {
-  id: 0,
-  username: 'Dev User',
-  credits_balance: 100,
+  id: 1,
+  username: 'dev_user',
+  credits_balance: 2_340,
 }
 
 type AuthContextValue = {

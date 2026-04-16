@@ -1,5 +1,5 @@
 """
-Data Cleaning Module for WindFall ML Training Pipeline.
+Data Cleaning Module for CardinalCast ML Training Pipeline.
 
 This module handles loading and cleaning raw weather data from NOAA.
 It performs column renaming, data type conversion, missing value handling,

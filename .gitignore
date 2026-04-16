@@ -25,9 +25,6 @@ dist/
 .vscode/
 .DS_Store
 
-# Agent context (plans and session log — local only)
-agentcontext/
-
 # Build / other
 *.log
 .coverage
@@ -39,5 +36,9 @@ htmlcov/
 bandit_report.txt
 **/npm_audit_report.txt
 
-# ML training outputs (metrics are generated from training runs)
+# ML training outputs (generated artifacts -- reproduce with evaluate_models.py)
 ml_training/metrics/
+ml_training/evaluation/
+
+# Playwright test artifacts
+frontend/test-results/

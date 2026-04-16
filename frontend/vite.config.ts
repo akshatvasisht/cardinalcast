@@ -11,4 +11,17 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
+  build: {
+    chunkSizeWarningLimit: 300,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-map': ['maplibre-gl'],
+          'vendor-form': ['react-hook-form', '@hookform/resolvers', 'zod'],
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-slot', '@radix-ui/react-label'],
+        },
+      },
+    },
+  },
 })

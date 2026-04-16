@@ -18,8 +18,8 @@ cd cardinalcast
 Backend:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+python -m venv venv
+source venv/bin/activate   # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 ```
 
@@ -30,12 +30,11 @@ Create a `.env` file in the repo root (use [.env.example](../.env.example) as a 
 | Variable     | Required | Description                    |
 |-------------|----------|--------------------------------|
 | `DB_URL`    | Yes      | PostgreSQL URL (e.g. `postgresql://user:pass@localhost:5432/cardinalcast`) |
-| `JWT_SECRET`   | Yes  | Secret for JWT signing |
+| `JWT_SECRET`   | Yes  | Secret for JWT signing (min 32 chars recommended) |
 | `NOAA_CDO_TOKEN` | No* | NOAA CDO API token for ingestion |
-| `ML_MODEL_DIR` | No  | Path to ML model `.pkl` files (default: backend/odds_service/models) |
-| `DEBUG_MODE`   | No  | Set to `true` for debug |
+| `ML_MODEL_DIR` | No  | Path to ML model `.pkl` files (default: `backend/odds_service/models`) |
 
-\* Required for weather ingestion (actuals from NOAA CDO).
+\* Required for weather ingestion (actuals from NOAA CDO). Not needed for local demo — DB can be seeded manually.
 
 Example:
 
@@ -96,9 +95,14 @@ The app is served at http://localhost:5173. **The backend must be running** (see
   ```
   OpenAPI docs: http://127.0.0.1:8000/docs
 - **Frontend (development):** From `frontend/` run `npm run dev`; open http://localhost:5173.
-- **Production build:** TBD.
+
+## Running Tests
+
+Please refer to [TESTING.md](TESTING.md) for detailed test coverage and instructions on running the backend and E2E test suites.
 
 ## Troubleshooting
 
 - **Alembic "Can't locate revision":** Ensure you run `alembic upgrade head` from the repo root with `DB_URL` set.
 - **ImportError for backend:** Run Alembic from the repo root so `backend` is on `PYTHONPATH` (or use `prepend_sys_path = .` in alembic.ini, which is already set).
+- **Tests fail with "connection refused":** PostgreSQL must be running. Check with `pg_isready`.
+- **Tests fail with "password authentication failed":** Ensure `DB_URL` env var is set correctly — without it, the app falls back to a default that won't match your local DB credentials.

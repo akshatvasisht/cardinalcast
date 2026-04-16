@@ -1,5 +1,5 @@
 """
-Feature Engineering Module for WindFall ML.
+Feature Engineering Module for CardinalCast.
 
 This module transforms raw weather data into engineered features that
 improve ML model performance. It creates temporal features, rolling

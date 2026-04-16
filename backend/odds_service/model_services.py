@@ -1,5 +1,5 @@
 """
-Model services: load ML models and get odds distribution (CardinalCast, from Windfall).
+Model services: load ML models and get odds distribution.
 """
 
 import joblib

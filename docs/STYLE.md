@@ -1,24 +1,5 @@
 # Coding Standards & Style Guide
 
-This document defines the coding standards, conventions, and best practices for the CardinalCast weather wagering platform. All code must follow these guidelines to ensure quality, maintainability, and consistency.
-
----
-
-## Table of Contents
-
-1. [General Principles](#general-principles)
-2. [Python Guidelines](#python-guidelines)
-3. [TypeScript/React Guidelines](#typescriptreact-guidelines)
-4. [SQL & Database](#sql--database)
-5. [Testing Standards](#testing-standards)
-6. [Security & Error Handling](#security--error-handling)
-7. [Performance Guidelines](#performance-guidelines)
-8. [Documentation Standards](#documentation-standards)
-9. [Git Workflow](#git-workflow)
-10. [Code Review Checklist](#code-review-checklist)
-
----
-
 ## General Principles
 
 - **Clarity over cleverness**: Code should be self-explanatory
@@ -26,14 +7,13 @@ This document defines the coding standards, conventions, and best practices for 
 - **Fail fast**: Validate inputs early and raise meaningful errors
 - **Production mindset**: Even demo code should follow production patterns
 
----
 
 ## Python Guidelines
 
 ### Version & Environment
 
 - **Python 3.10+** required
-- Use virtual environments (`.venv`) - never install globally
+- Use virtual environments (`venv/`) - never install globally
 - Pin dependencies in `requirements.txt` with exact versions
 
 ### Naming Conventions
@@ -50,60 +30,21 @@ This document defines the coding standards, conventions, and best practices for 
 
 ### Type Annotations
 
-All public functions must have type annotations:
-
-```python
-# Good: Explicit types
-def calculate_odds(
-    p10: float,
-    p50: float,
-    p90: float,
-    house_edge: float = 0.10
-) -> dict[str, float]:
-    """Calculate bucket odds from quantile predictions."""
-    spread = p90 - p10
-    return {"spread": spread, "risk_score": spread / p50}
-
-# Bad: No types
-def calculate_odds(p10, p50, p90, house_edge=0.10):
-    spread = p90 - p10
-    return {"spread": spread, "risk_score": spread / p50}
-```
+All public functions must have type annotations. Use built-in generics (`dict[str, float]`, `list[int]`) rather than `typing.Dict`/`typing.List`.
 
 ### FastAPI Patterns
 
 #### Endpoint Structure
 
 ```python
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
-from backend.database import get_session
-from backend.auth import get_current_user
-from backend.models import User, Wager
-
-router = APIRouter(prefix="/wagers", tags=["wagers"])
-
+# Provide dependency injection for auth and db session in router endpoints.
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def place_wager(
     wager_request: WagerRequest,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-) -> WagerResponse:
-    """Place a wager on a weather outcome."""
-    # Validate balance
-    if current_user.credits_balance < wager_request.amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Insufficient credits"
-        )
-
-    # Create wager
-    wager = Wager(**wager_request.model_dump(), user_id=current_user.id)
-    session.add(wager)
-    session.commit()
-    session.refresh(wager)
-
-    return WagerResponse.model_validate(wager)
+    session: Session = Depends(get_db),
+):
+    pass
 ```
 
 #### Pydantic/SQLModel Models
@@ -120,7 +61,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True)
     password_hash: str
-    credits_balance: int = Field(default=1000)
+    credits_balance: int = Field(default=0)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 # API schemas (no table=True)
@@ -133,97 +74,11 @@ class WagerRequest(SQLModel):
 
 ### ML Code Patterns
 
-#### Model Training
-
-```python
-import xgboost as xgb
-import optuna
-import joblib
-from pathlib import Path
-from sklearn.metrics import mean_absolute_error
-
-def train_quantile_model(
-    X: pd.DataFrame,
-    y: pd.Series,
-    quantile: float,
-    n_trials: int = 10
-) -> xgb.XGBRegressor:
-    """
-    Train XGBoost quantile regression model with Optuna tuning.
-
-    Args:
-        X: Feature matrix
-        y: Target vector
-        quantile: Target quantile (0.1, 0.5, or 0.9)
-        n_trials: Number of Optuna trials
-
-    Returns:
-        Trained XGBoost model
-    """
-    def objective(trial: optuna.Trial) -> float:
-        params = {
-            "objective": "reg:quantileerror",
-            "quantile_alpha": quantile,
-            "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
-            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
-            "max_depth": trial.suggest_int("max_depth", 3, 10),
-        }
-
-        model = xgb.XGBRegressor(**params, random_state=67)
-        model.fit(X, y)
-        preds = model.predict(X)
-        return mean_absolute_error(y, preds)
-
-    study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
-
-    best_model = xgb.XGBRegressor(
-        **study.best_params,
-        objective="reg:quantileerror",
-        quantile_alpha=quantile,
-        random_state=67
-    )
-    best_model.fit(X, y)
-
-    return best_model
-```
-
-#### Feature Engineering
-
-```python
-def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Generate time series features for weather prediction.
-
-    Creates:
-    - Cyclical temporal encodings (sin/cos)
-    - Rolling window statistics (3/7/14/30 days)
-    - Lag features (1/2/3 days)
-    - Meteorological interactions
-    """
-    df = df.copy()
-
-    # Cyclical temporal features
-    df["day_of_year_sin"] = np.sin(2 * np.pi * df["day_of_year"] / 365)
-    df["day_of_year_cos"] = np.cos(2 * np.pi * df["day_of_year"] / 365)
-
-    # Rolling windows
-    for window in [3, 7, 14, 30]:
-        df[f"high_temp_last_{window}d_avg"] = (
-            df["high_temp"].rolling(window).mean()
-        )
-
-    # Lag features
-    for lag in [1, 2, 3]:
-        df[f"high_temp_lag_{lag}"] = df["high_temp"].shift(lag)
-
-    # Interaction features
-    df["temp_range_x_precip"] = (
-        (df["high_temp"] - df["low_temp"]) * df["precip"]
-    )
-
-    return df.dropna()  # Remove rows with NaN from rolling/lag
-```
+Training and feature engineering patterns are implemented in `ml_training/train_models.py` and `ml_training/feature_engineering.py`. Key conventions:
+- XGBoost quantile regression via `objective='reg:quantileerror'`, one model per quantile (P10/P50/P90)
+- Bayesian hyperparameter search with Optuna (`TimeSeriesSplit` to prevent data leakage)
+- Feature selection via `RFECV`; serialize selector + models with `joblib`
+- Cyclical temporal encodings (sin/cos), rolling windows (3/7/14/30d), lag features, meteorological interactions
 
 ### Error Handling
 
@@ -269,7 +124,6 @@ logger.warning("NOAA API rate limit approaching")  # Potential issues
 logger.error("Failed to load model file", exc_info=True)  # Errors with traceback
 ```
 
----
 
 ## TypeScript/React Guidelines
 
@@ -293,144 +147,11 @@ logger.error("Failed to load model file", exc_info=True)  # Errors with tracebac
 
 ### TypeScript Strict Mode
 
-All TypeScript must compile with strict mode:
-
-```typescript
-// tsconfig.json (required)
-{
-  "compilerOptions": {
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noUnusedLocals": true
-  }
-}
-
-// Good: Explicit types
-interface WagerRequest {
-  forecast_date: string;
-  target: "high_temp" | "avg_wind_speed" | "precipitation";
-  bucket_value: number;
-  amount: number;
-}
-
-async function placeWager(request: WagerRequest): Promise<WagerResponse> {
-  const response = await fetch(`${API_BASE_URL}/wagers`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to place wager: ${response.statusText}`);
-  }
-
-  return response.json() as Promise<WagerResponse>;
-}
-
-// Bad: Implicit any
-async function placeWager(request) {
-  const response = await fetch(`/wagers`, {
-    method: "POST",
-    body: JSON.stringify(request),
-  });
-  return response.json();
-}
-```
+All TypeScript must compile with `strict: true` (`noImplicitAny`, `strictNullChecks`, `noUnusedLocals`). See `frontend/tsconfig.json`.
 
 ### React Component Structure
 
-```typescript
-import { useState, useEffect } from "react";
-import { WagerService } from "../services/wagerService";
-import { Button } from "./ui/button";
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface PlaceWagerDialogProps {
-  forecastDate: string;
-  onSuccess: (wagerId: number) => void;
-  onCancel: () => void;
-}
-
-type WagerTarget = "high_temp" | "avg_wind_speed" | "precipitation";
-
-// =============================================================================
-// Component
-// =============================================================================
-
-export function PlaceWagerDialog({
-  forecastDate,
-  onSuccess,
-  onCancel,
-}: PlaceWagerDialogProps) {
-  // State
-  const [target, setTarget] = useState<WagerTarget>("high_temp");
-  const [amount, setAmount] = useState<number>(10);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Effects
-  useEffect(() => {
-    // Load odds for selected target
-    loadOdds(forecastDate, target);
-  }, [forecastDate, target]);
-
-  // Handlers
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      const response = await WagerService.place({
-        forecast_date: forecastDate,
-        target,
-        bucket_value: 77.5,
-        amount,
-      });
-
-      onSuccess(response.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Render
-  return (
-    <div className="dialog">
-      <h2>Place Wager</h2>
-      {error && <div className="error" role="alert">{error}</div>}
-
-      <select value={target} onChange={(e) => setTarget(e.target.value as WagerTarget)}>
-        <option value="high_temp">High Temperature</option>
-        <option value="avg_wind_speed">Avg Wind Speed</option>
-        <option value="precipitation">Precipitation</option>
-      </select>
-
-      <input
-        type="number"
-        value={amount}
-        onChange={(e) => setAmount(Number(e.target.value))}
-        min={1}
-        aria-label="Wager amount"
-      />
-
-      <div className="actions">
-        <Button onClick={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? "Placing..." : "Place Wager"}
-        </Button>
-        <Button onClick={onCancel} variant="outline">
-          Cancel
-        </Button>
-      </div>
-    </div>
-  );
-}
-```
+Functional components only. Structure files as: types → component → handlers → render. Group related state; keep effects scoped to a single concern.
 
 ### Accessibility
 
@@ -456,43 +177,62 @@ All components must be accessible:
 
 ### CSS (Tailwind + CSS Variables)
 
-Use semantic CSS variables defined in `globals.css`:
+CSS variables are defined in `src/index.css` using **oklch** color space (not HSL):
 
 ```css
-/* globals.css */
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --success: 142.1 76.2% 36.3%;
-    --destructive: 0 84.2% 60.2%;
-    --warning: 38 92% 50%;
-  }
+/* src/index.css */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --primary: oklch(0.41 0.22 25);       /* UW Madison Cardinal Red */
+  --success: oklch(0.623 0.169 149.185);
+  --destructive: oklch(0.577 0.245 27.325);
+  --warning: oklch(0.769 0.188 70.08);
+  /* Medal tokens for leaderboard */
+  --medal-gold: oklch(0.78 0.17 85);
+  --medal-silver: oklch(0.72 0 0);
+  --medal-bronze: oklch(0.62 0.10 55);
 }
 
-/* Use in components */
-.wager-status {
-  color: hsl(var(--success)); /* Win */
-  color: hsl(var(--destructive)); /* Lose */
-  color: hsl(var(--warning)); /* Pending */
+/* Dark mode — all tokens override under .dark class */
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --primary: oklch(0.55 0.22 25);
+  /* ... */
 }
 ```
 
-In React components:
+Tokens are full `oklch(...)` values — use them directly, not via `hsl(var(...))`:
 
 ```tsx
-// Good: Semantic class names
+// Good: semantic Tailwind token classes
 <span className="text-success">Won</span>
 <span className="text-destructive">Lost</span>
 <span className="text-warning">Pending</span>
 
-// Bad: Hardcoded colors
+// Bad: hardcoded palette classes
 <span className="text-green-600">Won</span>
 <span className="text-red-600">Lost</span>
 ```
 
----
+### Visual Identity
+
+**BalatroBackground** — WebGL shader component (`src/components/BalatroBackground.tsx`) used as a full-bleed background on the app layout and auth pages. Pauses the animation loop when the browser tab is hidden to avoid background CPU burn. Colors are centralized in `src/lib/constants.ts`:
+
+```ts
+export const BALATRO_COLORS = {
+  color1: '#C5050C',  // Cardinal Red
+  color2: '#FFFFFF',
+  color3: '#1a1a1a',
+} as const
+```
+
+**Glassmorphism** — Cards use `bg-card/90 backdrop-blur-sm` for a frosted glass effect against the Balatro background. Applied in `src/components/ui/Card.tsx`.
+
+**Font** — `Outfit` (Google Fonts), loaded with weights 400/500/600/700. Defined in `src/index.css` via `@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap')`.
+
 
 ## SQL & Database
 
@@ -540,135 +280,21 @@ def get_user_wagers(user_id: int, session: Session):
     return result.fetchall()
 ```
 
----
 
 ## Testing Standards
 
-### Backend Tests (pytest)
+See [TESTING.md](TESTING.md) for test structure, coverage details, and run commands.
 
-Test file structure:
-
-```python
-import pytest
-from fastapi.testclient import TestClient
-from backend.main import app
-
-client = TestClient(app)
-
-class TestAuthentication:
-    def test_register_new_user(self):
-        """Should create user and return JWT token"""
-        response = client.post("/auth/register", json={
-            "username": "testuser123",
-            "password": "securepass"
-        })
-
-        assert response.status_code == 200
-        assert "access_token" in response.json()
-        assert response.json()["token_type"] == "bearer"
-
-    def test_register_duplicate_username(self):
-        """Should reject duplicate username with 400"""
-        # Arrange: Create user
-        client.post("/auth/register", json={
-            "username": "duplicate",
-            "password": "pass123"
-        })
-
-        # Act: Try to create again
-        response = client.post("/auth/register", json={
-            "username": "duplicate",
-            "password": "pass456"
-        })
-
-        # Assert
-        assert response.status_code == 400
-```
-
-### Frontend Tests (Playwright)
-
-```typescript
-import { test, expect } from "@playwright/test";
-
-test.describe("Wager Placement", () => {
-  test("should place bucket wager successfully", async ({ page }) => {
-    // Arrange: Login
-    await page.goto("/login");
-    await page.fill('input[name="username"]', "testuser");
-    await page.fill('input[name="password"]', "testpass");
-    await page.click('button[type="submit"]');
-
-    // Act: Place wager
-    await page.goto("/dashboard");
-    await page.click("text=Place Wager");
-    await page.selectOption('select[name="target"]', "high_temp");
-    await page.fill('input[name="amount"]', "10");
-    await page.click('button:has-text("Confirm")');
-
-    // Assert
-    await expect(page.locator("text=Wager placed successfully")).toBeVisible();
-  });
-});
-```
-
-### Test Coverage Philosophy
-
-**Current**: Demo-level tests (11 backend, 4 E2E) to showcase capability
-
-**Production**: Would include:
-- Unit tests: 80%+ coverage
-- Integration tests: Critical flows
-- Load tests: Performance validation
-- Security tests: Penetration testing
-
----
 
 ## Security & Error Handling
 
 ### JWT Authentication
 
 ```python
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
-from jose import JWTError, jwt
-from datetime import datetime, timedelta
-
-SECRET_KEY = os.getenv("JWT_SECRET")
-ALGORITHM = "HS256"
-
-security = HTTPBearer()
-
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(hours=24)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-def get_current_user(
-    credentials: HTTPAuthCredentials = Depends(security),
-    session: Session = Depends(get_session)
-) -> User:
-    token = credentials.credentials
-
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials"
-            )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials"
-        )
-
-    user = session.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    return user
+# Implement JWT authentication by securely verifying signatures and parsing the payload.
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
+    # Use PyJWT or python-jose to decode credentials.
+    raise NotImplementedError
 ```
 
 ### Input Validation
@@ -676,62 +302,29 @@ def get_current_user(
 Always validate external input:
 
 ```python
-from pydantic import validator, Field
+from pydantic import field_validator, Field
 
 class WagerRequest(SQLModel):
-    forecast_date: str = Field(regex=r"^\d{4}-\d{2}-\d{2}$")
+    forecast_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     target: Literal["high_temp", "avg_wind_speed", "precipitation"]
     bucket_value: float = Field(gt=0, lt=200)
     amount: int = Field(ge=1, le=1000)
 
-    @validator("forecast_date")
-    def validate_future_date(cls, v):
+    @field_validator("forecast_date")
+    @classmethod
+    def validate_future_date(cls, v: str) -> str:
         date_obj = datetime.strptime(v, "%Y-%m-%d")
         if date_obj < datetime.now():
             raise ValueError("Cannot wager on past dates")
         return v
 ```
 
----
 
 ## Performance Guidelines
 
-### Database Query Optimization
+- **Database**: Use single joined queries; avoid N+1 patterns (don't query per-row inside a loop)
+- **Model loading**: Cache loaded `.pkl` models in a module-level dict to avoid repeated disk I/O on each request
 
-```python
-# Good: Single query with join
-statement = (
-    select(Wager, User)
-    .join(User)
-    .where(Wager.status == "PENDING")
-)
-results = session.exec(statement).all()
-
-# Bad: N+1 query problem
-wagers = session.exec(select(Wager)).all()
-for wager in wagers:
-    user = session.get(User, wager.user_id)  # N queries!
-```
-
-### Model Loading
-
-Cache loaded ML models to avoid repeated disk I/O:
-
-```python
-# Global cache
-_model_cache: dict[str, xgb.XGBRegressor] = {}
-
-def load_model(model_path: Path) -> xgb.XGBRegressor:
-    """Load model with caching."""
-    cache_key = str(model_path)
-
-    if cache_key not in _model_cache:
-        _model_cache[cache_key] = joblib.load(model_path)
-
-    return _model_cache[cache_key]
-```
-
----
 
 ## Documentation Standards
 
@@ -777,18 +370,8 @@ def train_quantile_model(
 
 ### Comments
 
-```python
-# Good: Explains WHY
-# Use optimistic settlement: resolve with preliminary NOAA data (1-3 day lag)
-# instead of waiting 45-60 days for finalized records. Ensures fast payouts.
-wager.status = resolve_with_preliminary_data(weather_snapshot)
+Comments should explain *why*, not *what*. If the comment restates what the code already says, delete it.
 
-# Bad: Explains WHAT (already obvious from code)
-# Set wager status to WIN
-wager.status = "WIN"
-```
-
----
 
 ## Git Workflow
 
@@ -831,7 +414,6 @@ git commit -m "Add metrics logging to training pipeline"
 git commit -m "Add models, tuning, metrics, and fix tests"
 ```
 
----
 
 ## Code Review Checklist
 
@@ -855,68 +437,5 @@ git commit -m "Add models, tuning, metrics, and fix tests"
 - [ ] Tests are meaningful
 - [ ] Documentation is accurate
 
----
 
-## Tool Configuration
 
-### Python (pyproject.toml)
-
-```toml
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-
-[tool.mypy]
-python_version = "3.10"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-
-[tool.pytest.ini_options]
-testpaths = ["backend/tests"]
-python_files = "test_*.py"
-```
-
-### TypeScript (tsconfig.json)
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true
-  }
-}
-```
-
----
-
-## Architecture Patterns Summary
-
-### Backend Patterns
-
-1. **FastAPI + SQLModel** — Single schema definition for DB and API
-2. **Alembic Migrations** — Versioned schema changes
-3. **JWT Authentication** — Stateless auth with Bearer tokens
-4. **Dependency Injection** — Use FastAPI `Depends()` for session, auth
-
-### ML Patterns
-
-1. **Quantile Regression** — Model uncertainty with P10/P50/P90
-2. **RFECV** — Automatic feature selection
-3. **Optuna** — Bayesian hyperparameter optimization
-4. **Time Series CV** — Prevent data leakage with `TimeSeriesSplit`
-
-### Frontend Patterns
-
-1. **React Hooks** — Functional components with `useState`, `useEffect`
-2. **TypeScript Strict** — Full type safety across components
-3. **Semantic CSS** — Use CSS variables (`--success`, `--destructive`)
-4. **Accessibility** — ARIA labels, keyboard navigation, focus management
-
----
-
-**Last Updated**: 2026-03-11

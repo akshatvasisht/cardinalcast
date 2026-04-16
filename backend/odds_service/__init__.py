@@ -1,24 +1,15 @@
 """
-CardinalCast ML service: facade over copied Windfall ML code.
+CardinalCast ML service: odds distribution and bucket pricing facade.
 
 Use get_odds() for odds distribution and get_priced_buckets() for placing wagers.
 Models are loaded on first use or at app startup.
 """
-
-from backend.odds_service.api_schemas import (
-    OddsGenerationRequest,
-    OddsGenerationResponse,
-    OddsBucket,
-)
 
 __all__ = [
     "get_odds",
     "get_priced_buckets",
     "get_over_under_pricing",
     "load_models",
-    "OddsGenerationRequest",
-    "OddsGenerationResponse",
-    "OddsBucket",
 ]
 
 _models_cache = None

@@ -1,5 +1,5 @@
 """
-Model Training Module for WindFall ML Pipeline.
+Model Training Module for CardinalCast ML Pipeline.
 
 This module trains XGBoost models for weather prediction using:
 - Recursive Feature Elimination with Cross-Validation (RFECV) for feature selection

@@ -1,5 +1,5 @@
 """
-Model Testing Module for WindFall ML Training Pipeline.
+Model Testing Module for CardinalCast ML Training Pipeline.
 
 This module provides a testing utility to validate trained models by making
 predictions on historical data and comparing them against known actual values.
@@ -61,7 +61,7 @@ def test_prediction(target_date_str: str, target: str):
         df = pd.read_csv(DATA_PATH)
         df['date'] = pd.to_datetime(df['date'])
     except FileNotFoundError:
-        print(f"❌ ERROR: Data file not found at {DATA_PATH}")
+        print(f"ERROR: Data file not found at {DATA_PATH}")
         return
 
     # --- 2. Find Specific Day ---
@@ -69,7 +69,7 @@ def test_prediction(target_date_str: str, target: str):
     df_day = df[df['date'] == target_date]
 
     if df_day.empty:
-        print(f"❌ ERROR: Date {target_date_str} not found in {DATA_PATH}.")
+        print(f"ERROR: Date {target_date_str} not found in {DATA_PATH}.")
         print("\nNOTE: This test script only works for dates *within* the cleaned dataset.")
         return
 
@@ -77,7 +77,7 @@ def test_prediction(target_date_str: str, target: str):
     try:
         actual_value = df_day[target].values[0]
     except KeyError:
-        print(f"❌ ERROR: Target column '{target}' not in data.")
+        print(f"ERROR: Target column '{target}' not in data.")
         return
 
     # --- 3. Load Models ---
@@ -90,7 +90,7 @@ def test_prediction(target_date_str: str, target: str):
         p50_model = joblib.load(MODEL_DIR / f"{target}_p50_model.pkl")
         p90_model = joblib.load(MODEL_DIR / f"{target}_p90_model.pkl")
     except FileNotFoundError as e:
-        print(f"❌ ERROR: Could not load models from {MODEL_DIR}. {e}")
+        print(f"ERROR: Could not load models from {MODEL_DIR}. {e}")
         print("Have you run train_models.py and saved the models to ../ml_api/models/?")
         return
 
@@ -113,17 +113,6 @@ def test_prediction(target_date_str: str, target: str):
     pred_p50 = p50_model.predict(feature_row_rfe)[0]
     pred_p90 = p90_model.predict(feature_row_rfe)[0]
 
-    # Convert predictions if it's a temperature target
-    # NOAA data may be in Celsius, but we want Fahrenheit for comparison
-    # Conversion formula: F = (C * 9/5) + 32
-    if 'temp' in target:
-        print("\n(Note: Converting model output from C° to F° for comparison...)\n")
-        # 9/5 is the conversion factor from Celsius to Fahrenheit
-        # 32 is the offset (freezing point difference)
-        pred_p10 = (pred_p10 * 9/5) + 32
-        pred_p50 = (pred_p50 * 9/5) + 32
-        pred_p90 = (pred_p90 * 9/5) + 32
-
     # --- 6. Show Results ---
     print("--- Prediction Results ---")
     print(f"  P10 (10th Percentile): {pred_p10:.2f}")
@@ -137,9 +126,9 @@ def test_prediction(target_date_str: str, target: str):
     # Check if actual value falls within the predicted range
     # A good model should have the actual value within P10-P90 range most of the time
     if actual_value < pred_p10 or actual_value > pred_p90:
-        print("✅ RESULT: The actual value fell OUTSIDE the P10-P90 range.")
+        print("RESULT: The actual value fell OUTSIDE the P10-P90 range.")
     else:
-        print("✅ RESULT: The actual value fell INSIDE the P10-P90 range.")
+        print("RESULT: The actual value fell INSIDE the P10-P90 range.")
     print("\nNOTE: This test script only works for dates *within* the cleaned dataset.")
 
 

@@ -100,8 +100,8 @@ export function AuthForm({ mode }: AuthFormProps) {
                         />
                     </CardContent>
                     <CardFooter className="flex flex-col gap-2">
-                        <Button type="submit" className="w-full">
-                            {isLogin ? 'Log in' : 'Register'}
+                        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                            {form.formState.isSubmitting ? (isLogin ? 'Signing in…' : 'Registering…') : (isLogin ? 'Log in' : 'Register')}
                         </Button>
                         <p className="text-center text-sm text-muted-foreground">
                             {isLogin ? "No account? " : "Already have an account? "}

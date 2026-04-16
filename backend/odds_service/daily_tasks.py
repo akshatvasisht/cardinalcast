@@ -1,5 +1,5 @@
 """
-Daily Tasks Module for WindFall ML API.
+Daily Tasks Module for CardinalCast.
 
 This module contains functions for scheduled daily tasks such as:
 - Resolving past wagers against actual weather data
@@ -291,10 +291,8 @@ def main():
     
     db_conn = None
     try:
-        # Models are currently loaded by the API server at startup
-        # In a real cron job setup, we would load them here:
-        # models = model_services.load_models()
-        # For now, this is a placeholder since the API handles model loading
+        # Models are managed by the API server at startup; pass empty dict here
+        # since this job path runs outside the API process context.
         models = {}
         
         db_conn = db.get_db_connection()

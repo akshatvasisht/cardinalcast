@@ -1,63 +1,40 @@
 <p align="center">
   <img
-    width="400"
+    width="200"
     alt="CardinalCast Logo"
     src="docs/images/logo-original.png"
   />
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/React-18-61DAFB.svg?logo=react" alt="React">
-  <img src="https://img.shields.io/badge/TypeScript-5.6-3178C6.svg?logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/ML-XGBoost-orange.svg" alt="ML">
-  <img src="https://img.shields.io/badge/Build-Passing-success.svg" alt="Build">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
-</p>
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)
+![ML](https://img.shields.io/badge/ML-XGBoost-orange)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-## Overview
 
-**CardinalCast** is a weather prediction wagering platform that allows users to place wagers on weather outcomes and win credits based on NOAA weather data. It is designed to demonstrate full-stack ML engineering by combining real-time weather data, quantile regression models, and interactive web interfaces.
-
-Unlike traditional weather forecasting tools, this system leverages XGBoost quantile regression (P10/P50/P90) to generate dynamic odds distributions that account for prediction uncertainty and historical inaccuracy patterns, enabling risk-adjusted wagering on temperature, wind, and precipitation outcomes.
+CardinalCast is a Madison prediction market that allows users to place wagers on weather outcomes and win credits based on NOAA weather data. This system leverages XGBoost quantile regression (P10/P50/P90) to generate dynamic odds distributions that account for prediction uncertainty and historical forecast errors, enabling risk-adjusted wagering on temperature, wind, and precipitation outcomes.
 
 ### Core Functionality
-* **ML-Powered Odds Engine:** XGBoost models trained on NOAA historical data generate P10/P50/P90 distributions with risk adjustment for accurate probability-based pricing.
-* **Real-Time Weather Integration:** Automated daily ingestion of NOAA observations and forecasts with scheduled wager resolution and credit payouts.
+* **ML-Powered Pricing:** Generates dynamic probability distributions using historical forecast errors and risk-adjusted uncertainty.
+* **Automated Data Pipeline:** Daily ingestion of NOAA actuals and forecasts for scheduled wager resolution.
 * **Interactive Wagering Interface:** React/TypeScript dashboard with weather map visualization, bucket-based wagers, over/under betting, and live leaderboard tracking.
 
 <details>
   <summary><b>View Screenshots</b></summary>
   <br>
 
-| Dashboard |
-| :---: |
-| <img src="docs/images/sidecar.png" width="100%"> |
+| Dashboard | History |
+| :---: | :---: |
+| <img src="docs/images/dashboard.png" width="100%"> | <img src="docs/images/history.png" width="100%"> |
 
 </details>
 
----
 
 ## Impact & Performance
 
-* **ML Model Accuracy:** P10/P50/P90 quantile regression with cross-validated MAE tracking (see [ml_training/metrics](ml_training/metrics/))
+* **ML Model Accuracy:** 4.35°F MAE (high temp) with 81–85% interval coverage on held-out test set
 * **System Latency:** Sub-100ms API response times for odds generation and wager placement
-* **Data Pipeline:** Automated daily NOAA data ingestion with scheduled resolution and leaderboard updates
-
-## Testing
-
-```bash
-# Backend tests (pytest)
-cd backend && pytest -v
-
-# Frontend E2E tests (Playwright)
-cd frontend && npm run test:e2e
-```
-
-**Coverage**: Demo-level testing showcasing capability. Production would include comprehensive unit tests (80%+ coverage), integration tests, and cross-browser E2E testing.
-
-See [TESTING.md](docs/TESTING.md) for detailed testing strategy.
-
 ## Documentation
 
 * **[SETUP.md](docs/SETUP.md):** Installation, environment configuration, and startup instructions.

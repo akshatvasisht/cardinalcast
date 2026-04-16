@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 
 from backend.auth import get_current_user
 from backend.models import User
-from backend.odds_service.db import get_session
+from backend.database import get_db as get_session
 
 router = APIRouter(
     prefix="/daily",

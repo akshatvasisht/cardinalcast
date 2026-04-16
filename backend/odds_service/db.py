@@ -1,14 +1,10 @@
 """
 Database adapter for CardinalCast ML service.
 Uses SQLModel/SQLAlchemy Session and CardinalCast schema (PostgreSQL).
-Replaces Windfall's MySQL database_connector.
 """
 
-# Database adapter for CardinalCast ML service.
-# Uses SQLModel/SQLAlchemy Session.
-# Now expects an active Session object to be passed in.
-
 import logging
+from contextlib import contextmanager
 from typing import List, Optional
 
 import pandas as pd
@@ -23,8 +19,19 @@ from backend.models import (
     User,
 )
 from backend.config import DEFAULT_LOCATION
+from backend.database import SessionLocal
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def get_db_connection():
+    """Provide a transactional Session scope for scheduler jobs."""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 def fetch_recent_weather_data(session: Session, days: int = 90) -> pd.DataFrame:
@@ -145,9 +152,9 @@ def update_wager_status_batch(session: Session, results: list) -> None:
             continue
         wager.status = r["status"]
         wager.winnings = r["winnings"]
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        wager.resolved_at = datetime.utcnow()
+        wager.resolved_at = datetime.now(timezone.utc)
         if r["status"] == "WIN":
             # NOTE: Concurrency issue handled here? 
             # In batch job context, arguably less contention than user actions, 

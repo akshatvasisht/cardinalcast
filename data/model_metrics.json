@@ -1,17 +1,38 @@
 {
     "high_temp": {
-        "mae": 4.005329132080078,
-        "rmse": 4.971056708629971,
-        "bias": -1.2906766255696616
+        "mae": 4.3457,
+        "rmse": 6.0313,
+        "bias": 0.2075,
+        "p10_p90_coverage": 0.8135,
+        "p10_pinball": 0.9693,
+        "p50_pinball": 2.1728,
+        "p90_pinball": 0.9067,
+        "interval_width_mean": 15.98,
+        "n_features_selected": 11,
+        "test_samples": 6268
     },
     "avg_wind_speed": {
-        "mae": 0.0,
-        "rmse": 0.0,
-        "bias": 0.0
+        "mae": 1.6992,
+        "rmse": 2.3965,
+        "bias": -0.2502,
+        "p10_p90_coverage": 0.8098,
+        "p10_pinball": 0.3286,
+        "p50_pinball": 0.8496,
+        "p90_pinball": 0.3636,
+        "interval_width_mean": 6.1536,
+        "n_features_selected": 13,
+        "test_samples": 6268
     },
     "precipitation": {
-        "mae": 0.030240951133276288,
-        "rmse": 0.07574169100505335,
-        "bias": -0.022654726084569043
+        "mae": 0.0871,
+        "rmse": 0.2797,
+        "bias": -0.0789,
+        "p10_p90_coverage": 0.8526,
+        "p10_pinball": 0.0104,
+        "p50_pinball": 0.0435,
+        "p90_pinball": 0.026,
+        "interval_width_mean": 0.2632,
+        "n_features_selected": 16,
+        "test_samples": 6268
     }
 }

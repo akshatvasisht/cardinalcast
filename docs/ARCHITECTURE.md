@@ -1,12 +1,8 @@
 # Architecture Documentation
 
-This document details the architectural decisions, system components, and data flow for **CardinalCast**.
-
----
-
 ## Glossary
 
-- **Wager:** A user bet on a weather outcome (e.g. temperature above a threshold); has status PENDING / WIN / LOSE.
+- **Wager:** A user bet on a weather outcome (e.g. temperature above a threshold); has status PENDING / PENDING_DATA / WIN / LOSE.
 - **WeatherSnapshot:** Stored observation (date, location, temperature, wind_speed) used for ingestion and wager resolution.
 - **Credits:** In-app balance used to place wagers and receive payouts.
 
@@ -19,17 +15,28 @@ CardinalCast is a Python backend (FastAPI) with a React frontend. The backend ha
 ```
 /
 ├── backend/              # FastAPI app, SQLModel models, services
-│   ├── main.py           # App entry, CORS, lifespan, routers
+│   ├── main.py           # App entry, CORS, GZip middleware, lifespan, routers
 │   ├── models.py         # User, Wager, WeatherSnapshot, WeatherForecast, Odds
 │   ├── database.py       # Session dependency
-│   ├── auth.py           # JWT, get_current_user, password hashing
-│   ├── ingestion_service.py  # Daily weather ingestion entry
+│   ├── auth.py           # JWT, get_current_user, get_current_user_optional, password hashing
+│   ├── config.py         # Business logic constants (max wager, house edge, etc.)
 │   ├── resolution.py     # resolve_wagers()
-│   ├── reset_service.py  # Daily reset (no-op until daily claims added)
-│   ├── scheduler.py      # APScheduler: ingestion, resolution, reset
-│   ├── routers/         # auth_routes, wager_routes, odds_routes
-│   └── odds_service/     # Odds/predictions (model_services, ingestion, daily tasks)
+│   ├── reset_service.py  # Daily reset logic (called by scheduler)
+│   ├── lifecycle_service.py  # Data retention purge (called by scheduler)
+│   ├── scheduler.py      # APScheduler: purge, ingestion, resolution, reset
+│   ├── Dockerfile        # Container image for the backend
+│   ├── routers/          # auth_routes, wager_routes, odds_routes, daily_routes, leaderboard_routes
+│   └── odds_service/     # Odds/predictions facade
+│       ├── model_services.py
+│       ├── feature_engineering.py
+│       ├── ingestion_service.py
+│       ├── payout_logic.py
+│       ├── daily_tasks.py
+│       ├── db.py         # DB helpers for scheduler jobs
+│       ├── config.py
+│       └── models/       # Trained .pkl model files (Git LFS)
 ├── frontend/             # React (Vite) + TypeScript + shadcn/ui; dashboard, auth, wagers
+│   └── tests/e2e/        # Playwright smoke tests
 ├── ml_training/          # Training scripts for quantile regression models
 ├── alembic/              # DB migrations
 ├── data/                 # Historical weather data
@@ -41,8 +48,8 @@ CardinalCast is a Python backend (FastAPI) with a React frontend. The backend ha
 
 | Category   | Technology   | Rationale                                      |
 |-----------|---------------|------------------------------------------------|
-| Backend   | Python (FastAPI) | API, auth, ML orchestration; replaces Spring Boot |
-| Database  | PostgreSQL    | Replaces MySQL; relational consistency         |
+| Backend   | Python (FastAPI) | API, auth, ML orchestration                       |
+| Database  | PostgreSQL    | Relational consistency; production-grade       |
 | ORM       | SQLModel      | Pydantic + SQLAlchemy; single source for schema and API |
 | Migrations| Alembic       | Versioned schema changes; DB_URL from env      |
 | Data/ML   | Git LFS       | Model versioning for public cloning              |
@@ -51,36 +58,24 @@ CardinalCast is a Python backend (FastAPI) with a React frontend. The backend ha
 ## Database schema and migrations
 
 - **Schema** is defined in `backend/models.py`:
-  - **users:** id, username, password_hash, credits_balance, created_at
-  - **wagers:** id, user_id, amount, status (PENDING/WIN/LOSE), odds, created_at, resolved_at; forecast_date, target, bucket_low, bucket_high, base_payout_multiplier, jackpot_multiplier, winnings
+  - **users:** id, username, password_hash, credits_balance, created_at, last_daily_claim_date
+  - **wagers:** id, user_id, amount, status (PENDING/PENDING_DATA/WIN/LOSE), odds, created_at, resolved_at; forecast_date, target, wager_kind (BUCKET/OVER_UNDER), bucket_low, bucket_high, direction (OVER/UNDER, nullable), predicted_value (float, nullable), target_value (float), base_payout_multiplier, jackpot_multiplier, winnings
   - **weather_snapshots:** id, date, location, temperature, wind_speed, precipitation, created_at
   - **weather_forecasts:** id, date, noaa_high_temp, noaa_avg_wind_speed, noaa_precip, created_at
   - **odds:** forecast_date, target, bucket_*, probability, base_payout_multiplier, jackpot_multiplier
 
-- **Migrations** are managed by Alembic. `alembic/env.py` reads `DB_URL` from the environment and uses `SQLModel.metadata` from `backend.models`. Initial migration: `alembic/versions/001_initial_schema.py`. Run `alembic upgrade head` after PostgreSQL is installed and configured.
-
+- **Migrations** are managed by Alembic. `alembic/env.py` reads `DB_URL` from the environment and uses `SQLModel.metadata` from `backend.models`. Initial migration: `alembic/versions/001_initial_schema.py`.
 ## Data Integrity & Settlement
 
 ### Preliminary Settlement Strategy
-NOAA GHCNd data takes 45-60 days to be fully finalized/audited. To ensure a good user experience, we use an **Optimistic Settlement** strategy:
-1. **Settlement**: Wagers are resolved using **Preliminary Data**, which is available via the NOAA CDO API within **1-3 days**.
-2. **Self-Correction**: The ingestion pipeline (`ingestion_service.py`) runs daily with a lookback window (default 30 days). When NOAA updates preliminary records to finalized values, the database adapter (`db.py`) automatically **upserts** (overwrites) the local records.
-3. **Consistency**: This ensures fast payouts while guaranteeing the database eventually matches the official climatological record. Note: We do *not* reverse payouts if data changes, as per standard sports betting "action goes as written" policy for finalized events, unless the error was egregious.
+NOAA GHCNd data takes 45-60 days to be fully finalized/audited. Wagers are resolved against **preliminary data**, which NOAA makes available within 1-3 days, allowing fast payouts without waiting for the finalized record.
 
-### Data Lifecycle Policy
-To manage database bloat and ensure fast query execution over time, CardinalCast enforces a strict **1-year retention policy** for temporary operational data:
-- A scheduled script (`backend/scripts/purge_data.py`) deletes records from `Wager`, `WeatherForecast`, `WeatherSnapshot`, and `Odds` tables that are older than 365 days.
+The ingestion pipeline (`ingestion_service.py`) runs daily with a 30-day lookback window. When NOAA updates preliminary records with finalized values, `db.py` upserts them automatically — the local database converges to the official climatological record over time. Payouts are not reversed after settlement, consistent with the standard sports betting "action goes as written" policy.
+
+### Data Retention Policy
+To prevent unbounded table growth, CardinalCast enforces a **1-year retention policy** for temporary operational data:
+- A scheduled job (`backend/lifecycle_service.py`) deletes records from `WeatherForecast` and `WeatherSnapshot` tables that are older than 365 days.
 - User accounts and historical aggregates remain unaffected to preserve account integrity.
-
-## Data flow
-
-1. **Input:** Weather API (ingestion), user actions (register, login, place wager).
-2. **Processing:** Auth (JWT), wager validation and ML odds, resolution after weather actuals, daily reset (scheduler).
-3. **Output:** Persisted in PostgreSQL; models versioned with Git LFS.
-
-## Client–server (frontend)
-
-The React app talks to the backend over REST. Auth: user logs in or registers, receives a JWT; the client stores it (e.g. localStorage) and sends `Authorization: Bearer <token>` on protected requests. Dashboard and wager flows use `GET /auth/me`, `GET /wagers`, `GET /odds`, and `POST /wagers` as documented in API.md.
 
 ## Scheduler (APScheduler)
 
@@ -88,11 +83,10 @@ Jobs run in-process with the FastAPI app (started in lifespan).
 
 | Job        | Schedule (America/Chicago) | Action |
 |------------|----------------------------|--------|
-| Ingestion  | 6:00 daily                 | Fetch NOAA actuals and forecasts; store in weather_snapshots and weather_forecasts. |
+| Purge      | 4:00 daily                 | Delete `WeatherForecast` and `WeatherSnapshot` records older than 365 days. Wagers and odds are retained. |
+| Ingestion  | 6:00 daily                 | Fetch NOAA actuals and forecasts; store in weather_snapshots and weather_forecasts; generate odds. |
 | Resolution | 6:15 daily                 | Resolve pending wagers (WIN/LOSE), update credits. |
-| Reset      | 0:00 daily                 | Daily reset (no-op until daily-claim state is added). |
-
-Order: ingestion before resolution so new actuals are available; reset at midnight.
+Order: purge at 4 AM to clear stale data; ingestion before resolution so new actuals are available. Daily credit claims are user-triggered (idempotent per calendar day) -- no scheduled job required.
 
 ## Config and secrets
 
@@ -100,18 +94,13 @@ All secrets (DB URL, JWT secret, API keys) come from environment variables or a 
 
 ## Design constraints
 
-- No Java in the product; backend is Python only.
-- No production deployment scope in the current plan; localhost/portfolio focus.
+- Localhost/portfolio scope — no production deployment pipeline.
 
-### 4. Odds Calibration Strategy (Fact-Based)
-To ensure the House Edge (target 5-7%) is mathematically sound and not arbitrary:
-1.  **Uncertainty Source**: Use **RMSE** (Root Mean Squared Error) from the ML model's validation set, not historical standard deviation.
-2.  **Probability Integration**: Calculate bucket probabilities by integrating the **Probability Density Function (PDF)** (Area Under Curve) rather than fixed sigma ranges.
-3.  **Safety Floor**: Minimum payout multiplier set to `1.01x` (industry standard -10000) to allow "sure thing" bets without giving away free value.
+## Odds Calibration
 
-### 5. Deployment
-- **Frontend**: Vercel (CI/CD from GitHub).
+House edge target: 5–10%. Approach:
+- Use RMSE from model validation set as the uncertainty source (not historical standard deviation).
+- Calculate bucket probabilities by integrating the quantile PDF (area under curve), not fixed sigma ranges.
+- Safety floor: minimum payout multiplier `1.01x`; ceiling `50x`. Configured in `backend/config.py`.
+- Uncertainty scaling factor (1.5–2.0×) applied to model spread for forecasts >3 days out.
 
-## Security Audit (Feb 2026)
-- **Backend**: `bandit` scan passed with **0 issues** (clean).
-- **Frontend**: `npm audit` flagged 2 moderate issues in `esbuild` (Vite dev dependency). Low risk for production build artifacts; scheduled for update with Vite 6.

@@ -59,7 +59,7 @@ class TestAuthentication:
             "password": "pass2"
         })
         assert response2.status_code == 400
-        assert "already exists" in response2.json()["detail"].lower()
+        assert "already registered" in response2.json()["detail"].lower()
 
     def test_login_with_valid_credentials(self):
         """Should return token for valid login"""
@@ -225,7 +225,7 @@ class TestUserProfile:
         user_data = response.json()
         assert user_data["username"] == username
         assert "credits_balance" in user_data
-        assert user_data["credits_balance"] == 100  # Initial balance
+        assert user_data["credits_balance"] == 0  # New users start with 0 credits
 
 
 # Run with: pytest backend/tests/ -v

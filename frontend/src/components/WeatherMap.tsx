@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import Map from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -16,7 +16,7 @@ const DATA_SOURCES = [
     { id: 'W-UW', name: 'Atmospheric & Oceanic Sciences', lat: 43.0728, lon: -89.4072, type: 'Research Station' }
 ];
 
-export function WeatherMap() {
+export const WeatherMap = memo(function WeatherMap() {
     const [error, setError] = useState<string | null>(null);
 
     if (error) {
@@ -47,7 +47,7 @@ export function WeatherMap() {
                         latitude={source.lat}
                         anchor="bottom"
                     >
-                        <div className="flex flex-col items-center group">
+                        <div className="flex flex-col items-center group" aria-label={source.name}>
                             <div className="w-4 h-4 rounded-full bg-primary border-2 border-white shadow-lg group-hover:scale-125 transition-transform" />
                             <div className="mt-1 px-2 py-1 bg-black/80 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                                 {source.name}
@@ -58,4 +58,4 @@ export function WeatherMap() {
             </Map>
         </div>
     );
-}
+})

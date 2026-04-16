@@ -67,10 +67,10 @@ def validate_edge_cases():
         
         # Verify quantiles hold their relationship
         assert pred_p10 <= pred_p50 <= pred_p90, "Quantile crossing detected in extreme edge case!"
-        print("  ✅ Quantile relationship maintained.")
+        print("  Quantile relationship maintained.")
         
     except FileNotFoundError:
-        print(f"  ⚠️ Models not found in {MODEL_DIR}. Skipping execution.")
+        print(f"  Models not found in {MODEL_DIR}. Skipping execution.")
 
     print("\nValidation script assertions passed!")
 

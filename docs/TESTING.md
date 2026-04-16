@@ -1,26 +1,7 @@
 # Testing Guidelines
 
-## Overview
+12 backend tests (pytest) and 6 E2E tests (Playwright) cover critical paths: auth, wager validation, odds API, user journeys, navigation, and accessibility basics.
 
-CardinalCast includes **demonstration-quality tests** to showcase testing capability for a portfolio project. For production deployment, comprehensive test coverage (80%+) would be implemented.
-
-## Testing Philosophy
-
-**Current Approach**: Demo tests covering critical paths to demonstrate:
-- Understanding of testing frameworks (pytest, Playwright)
-- API testing patterns (authentication, validation)
-- E2E user journey testing
-- Accessibility testing basics
-
-**Production Approach**: Would include:
-- Comprehensive unit tests (80%+ coverage)
-- Integration tests (full user flows)
-- Load tests (performance validation)
-- Security tests (penetration testing)
-- Visual regression tests
-- Cross-browser testing
-
----
 
 ## Backend Tests (pytest)
 
@@ -40,35 +21,14 @@ pytest --cov=backend --cov-report=term-missing
 
 ### Test Coverage
 
-Current demo tests cover:
-
-#### **Authentication** (`test_demo.py::TestAuthentication`)
-- ✅ User registration with valid credentials
-- ✅ Duplicate username rejection
-- ✅ Login with valid credentials
-- ✅ Login with invalid password
-- ✅ Login with nonexistent user
-
-#### **Wager Validation** (`test_demo.py::TestWagerValidation`)
-- ✅ Authentication requirement enforcement
-- ✅ Insufficient balance rejection
-- ✅ Minimum wager amount validation
-
-#### **Odds API** (`test_demo.py::TestOddsAPI`)
-- ✅ Odds list retrieval
-- ✅ Response schema validation
-
-#### **User Profile** (`test_demo.py::TestUserProfile`)
-- ✅ Current user profile retrieval
-- ✅ Initial balance verification
+The test suite includes unit tests for the backend (Health, Auth, Wager Validation, Odds API, and User Profiles) using an actual PostgreSQL instance.
 
 ### Mocking Strategy
 
-- **Database**: Tests use real PostgreSQL (via Docker) - would use test database in production
+- **Database**: Tests use a real PostgreSQL instance (local; configure via `DB_URL` in `.env`) — a dedicated test database would be used in production
 - **ML Models**: Mock `backend.odds_service.load_models` where needed
 - **External APIs**: Mock NOAA API calls for ingestion tests
 
----
 
 ## Frontend Tests (Playwright)
 
@@ -90,32 +50,7 @@ npm run test:e2e:headed
 
 ### Test Coverage
 
-Current E2E tests cover:
-
-#### **User Journeys** (`smoke.spec.ts`)
-- ✅ Registration → Login → Daily claim flow
-- ✅ Place bucket wager
-- ✅ Place over/under wager
-- ✅ Wager history verification
-- ✅ Leaderboard visibility
-
-#### **Accessibility** (`smoke.spec.ts`)
-- ✅ Homepage branding and navigation
-- ✅ Keyboard navigation through forms
-- ✅ Screen reader landmarks (implicit)
-
-#### **Component Visibility** (`smoke.spec.ts`)
-- ✅ Dashboard components (calendar, map, wager widget)
-- ✅ Navigation between all pages
-- ✅ Logo and branding elements
-
-### Production E2E Tests Would Include
-
-- Cross-browser testing (Chrome, Firefox, Safari)
-- Mobile viewport testing (320px to 1920px)
-- Accessibility audits (axe-core integration)
-- Visual regression tests (Percy, Chromatic)
-- Performance testing (Lighthouse CI)
+E2E tests verify user journeys, accessibility, and component visibility across dashboard and application states.
 
 ## Profitability backtest
 

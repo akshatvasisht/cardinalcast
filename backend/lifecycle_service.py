@@ -1,7 +1,7 @@
 """Data lifecycle management: purge old weather data to control DB size."""
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlmodel import Session, delete, select
@@ -22,7 +22,7 @@ def purge_old_data(retention_days: int = 365):
     try:
         with SessionLocal() as session:
             today = date.today()
-            cutoff_snapshot = datetime.utcnow() - timedelta(days=retention_days)
+            cutoff_snapshot = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
             # 1. Delete old forecasts (where date < today)
             # Forecasts are relevant only for future/today; past forecasts are superseded by actuals in snapshots.

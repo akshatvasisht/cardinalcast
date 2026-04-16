@@ -1,5 +1,5 @@
 """
-Ingestion Service Module for WindFall ML API.
+Ingestion Service Module for CardinalCast.
 
 This module handles fetching weather data from external NOAA APIs:
 - NOAA CDO (Climate Data Online) for historical actuals
@@ -33,7 +33,7 @@ NWS_GRID_X = 66
 NWS_GRID_Y = 64
 
 # User-Agent required by NWS API
-NWS_USER_AGENT = "(WindFall Weather Betting, contact@windfall.example)"
+NWS_USER_AGENT = "(CardinalCast Weather, cardinalcast@example.com)"
 
 
 def _celsius_tenths_to_fahrenheit(tenths_celsius: float) -> float:

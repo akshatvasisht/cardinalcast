@@ -1,6 +1,6 @@
 """SQLModel schema for CardinalCast. Used by Alembic for migrations."""
 
-from datetime import date as date_type, datetime
+from datetime import date as date_type, datetime, timezone
 from enum import Enum
 from typing import Optional
 
@@ -21,7 +21,7 @@ class User(SQLModel, table=True):
     username: str = Field(unique=True, index=True)
     password_hash: str
     credits_balance: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_daily_claim_date: Optional[date_type] = Field(default=None)
 
 
@@ -34,7 +34,7 @@ class Wager(SQLModel, table=True):
     target_value: Optional[float] = None  # e.g. temperature threshold
     status: str = Field(default=WagerStatus.PENDING.value, index=True)  # PENDING / WIN / LOSE
     odds: Optional[float] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     resolved_at: Optional[datetime] = None
     forecast_date: Optional[date_type] = None
     target: Optional[str] = None
@@ -44,10 +44,10 @@ class Wager(SQLModel, table=True):
     jackpot_multiplier: Optional[float] = None
     winnings: Optional[float] = None
     
-    # New fields for Over/Under
+    # Over/Under wager fields
     wager_kind: str = Field(default="BUCKET")  # BUCKET or OVER_UNDER
     direction: Optional[str] = None  # OVER or UNDER
-    predicted_value: Optional[float] = None  # The threshold for OVER/UNDER
+    predicted_value: Optional[float] = None  # Threshold for OVER_UNDER wagers
 
 
 class WeatherSnapshot(SQLModel, table=True):
@@ -61,7 +61,7 @@ class WeatherSnapshot(SQLModel, table=True):
     temperature: Optional[float] = None
     wind_speed: Optional[float] = None
     precipitation: Optional[float] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class WeatherForecast(SQLModel, table=True):
@@ -72,7 +72,7 @@ class WeatherForecast(SQLModel, table=True):
     noaa_high_temp: Optional[float] = None
     noaa_avg_wind_speed: Optional[float] = None
     noaa_precip: Optional[float] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Odds(SQLModel, table=True):
@@ -87,4 +87,4 @@ class Odds(SQLModel, table=True):
     probability: Optional[float] = None
     base_payout_multiplier: float = Field(default=1.0)
     jackpot_multiplier: float = Field(default=1.0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

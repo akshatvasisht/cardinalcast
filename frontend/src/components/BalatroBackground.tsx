@@ -181,8 +181,10 @@ export function BalatroBackground({
 
         const mesh = new Mesh(gl, { geometry, program });
         let animationFrameId: number;
+        let running = true;
 
         function update(time: number) {
+            if (!running) return;
             animationFrameId = requestAnimationFrame(update);
             program.uniforms.iTime.value = time * 0.001;
             renderer.render({ scene: mesh });
@@ -190,19 +192,34 @@ export function BalatroBackground({
         animationFrameId = requestAnimationFrame(update);
         container.appendChild(gl.canvas);
 
+        // Pause the rAF loop when the browser tab is hidden to save GPU/battery.
+        function handleVisibilityChange() {
+            if (document.hidden) {
+                running = false;
+                cancelAnimationFrame(animationFrameId);
+            } else {
+                running = true;
+                animationFrameId = requestAnimationFrame(update);
+            }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         function handleMouseMove(e: MouseEvent) {
-            if (!mouseInteraction) return;
             const rect = container.getBoundingClientRect();
             const x = (e.clientX - rect.left) / rect.width;
             const y = 1.0 - (e.clientY - rect.top) / rect.height;
             program.uniforms.uMouse.value = [x, y];
         }
-        container.addEventListener('mousemove', handleMouseMove);
+        if (mouseInteraction) {
+            container.addEventListener('mousemove', handleMouseMove);
+        }
 
         return () => {
+            running = false;
             cancelAnimationFrame(animationFrameId);
             window.removeEventListener('resize', resize);
-            container.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (mouseInteraction) container.removeEventListener('mousemove', handleMouseMove);
             if (container.contains(gl.canvas)) {
                 container.removeChild(gl.canvas);
             }

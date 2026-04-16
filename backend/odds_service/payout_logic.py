@@ -1,4 +1,4 @@
-"""Payout and bucket odds logic (from Windfall)."""
+"""Payout and bucket odds logic."""
 
 from typing import List, Dict, Tuple
 

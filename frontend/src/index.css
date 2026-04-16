@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
@@ -9,8 +8,12 @@
 :root {
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
-  color: #1a1a1a;
-  background-color: #000000 !important;
+  color: oklch(0.145 0 0);
+  background-color: oklch(0 0 0);
+  /* Medal tokens for leaderboard */
+  --medal-gold: oklch(0.78 0.17 85);
+  --medal-silver: oklch(0.72 0 0);
+  --medal-bronze: oklch(0.62 0.10 55);
   /* Fixes white flashes during overscroll */
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -22,7 +25,6 @@
   /* UW Madison Cardinal Red primary */
   --primary: oklch(0.41 0.22 25);
   --primary-foreground: oklch(0.985 0 0);
-  --ring: oklch(0.41 0.22 25);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -38,14 +40,6 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
   /* Semantic Colors */
   --success: oklch(0.623 0.169 149.185);
   --success-foreground: oklch(0.985 0 0);
@@ -57,7 +51,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #000000 !important;
+  background-color: oklch(0 0 0);
 }
 
 #root {
@@ -95,14 +89,6 @@ body {
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 .dark {
@@ -130,14 +116,6 @@ body {
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
   /* Semantic Colors */
   --success: oklch(0.623 0.169 149.185);
   --success-foreground: oklch(0.985 0 0);
@@ -155,22 +133,43 @@ body {
   }
 }
 
-@layer components {
-  .glass {
-    @apply bg-white/40 backdrop-blur-xl border border-white/20 shadow-xl;
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
+.page-transition {
+  animation: page-enter 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-transition-fallback {
+  min-height: calc(100vh - 7rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
+  }
+}
+
+@layer components {
   .card-premium {
-    @apply bg-card/80 backdrop-blur-md border border-border/40 shadow-sm transition-all duration-300 hover:shadow-md hover:border-border/60;
+    @apply bg-card/80 backdrop-blur-md border border-border/40 shadow-sm transition-[box-shadow,border-color] duration-300 hover:shadow-md hover:border-border/60;
   }
 
   /* Global Page Layout Standardization */
   .page-container {
-    @apply space-y-4;
+    @apply space-y-4 min-h-[calc(100vh-7rem)];
   }
 
   .page-header {
-    @apply flex flex-wrap items-center justify-between gap-3;
+    @apply flex items-center justify-between gap-3;
   }
 
   .page-title {
